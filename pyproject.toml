@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "screenshot-ocr-extractor"
+version = "0.1.0"
+description = "Extract full name, job title and company from screenshots using OCR (MinerU) and LangChain"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Your Name", email = "you@example.com" }]
+license = { file = "LICENSE" }
+keywords = ["ocr", "langchain", "mineru", "fastapi", "information-extraction"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Typing :: Typed",
+]
+dependencies = [
+  "langchain>=0.1.0",
+  "langchain-openai>=0.1.0",
+  "langchain-core>=0.1.0",
+  "requests>=2.31.0",
+  "pydantic>=2.0.0",
+  "typing-extensions>=4.8.0",
+  "fastapi>=0.100.0",
+  "uvicorn>=0.23.0",
+  "python-multipart>=0.0.6",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourname/screenshot-ocr-extractor"
+Repository = "https://github.com/yourname/screenshot-ocr-extractor"
+Issues = "https://github.com/yourname/screenshot-ocr-extractor/issues"
+
+[project.scripts]
+screenshot-ocr-server = "src.server:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
