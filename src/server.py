@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-
+from typing import List
 from ocr_client import OCRClient
 
 
@@ -25,11 +25,17 @@ class Person(BaseModel):
     confidence: float = Field(default=0.0, description="Extraction confidence")
 
 
+class PersonList(BaseModel):
+    """Multiple persons info model."""
+    
+    persons: List[Person] = Field(description="List of extracted persons")
+
+
 class ExtractionResponse(BaseModel):
     """API response model."""
 
     success: bool = Field(description="Whether processing succeeded")
-    data: Optional[Person] = Field(default=None, description="Extracted person info")
+    data: Optional[List[Person]] = Field(default=None, description="Extracted person info")
     error_message: Optional[str] = Field(default=None, description="Error message")
     ocr_text: Optional[str] = Field(default=None, description="Raw OCR text")
 
@@ -44,13 +50,15 @@ class LangChainExtractor:
                 (
                     "system",
                     "You are an expert information extractor. Extract person info from OCR text. "
-                    "Input typically comes from business cards or profile screenshots and contains a full name, job title and company name. "
+                    "Input typically comes from business cards, profile screenshots, or group photos and may contain one or multiple persons. "
                     "Follow these rules strictly:"
-                    "1. Full name: usually the most prominent text, often on the first line. "
-                    "2. Job title: includes keywords like Director, Manager, Engineer, Analyst. "
-                    "3. Company: may include suffixes like Inc, Corp, LLC, Co. "
-                    "4. If a field cannot be determined, return null. "
-                    "5. Extract only explicit information; do not guess.",
+                    "1. Extract ALL persons found in the text, even if there are multiple people. "
+                    "2. Full name: usually the most prominent text, often on the first line. "
+                    "3. Job title: includes keywords like Director, Manager, Engineer, Analyst. "
+                    "4. Company: may include suffixes like Inc, Corp, LLC, Co. "
+                    "5. If a field cannot be determined, return null. "
+                    "6. Extract only explicit information; do not guess. "
+                    "7. Return a list of all persons found, even if only one person is present.",
                 ),
                 ("human", "Extract person info from the following OCR text:\n\n{text}"),
             ]
@@ -66,7 +74,7 @@ class LangChainExtractor:
             self.llm = ChatOpenAI(
                 model=llm_model, base_url=llm_base_url, api_key=llm_api_key, temperature=0
             )
-            self.structured_llm = self.llm.with_structured_output(schema=Person)
+            self.structured_llm = self.llm.with_structured_output(schema=PersonList)
         else:
             self.llm = None
             self.structured_llm = None
@@ -76,18 +84,19 @@ class LangChainExtractor:
                 "Warning: No LLM API key found. /extract_text will still work with a heuristic fallback."
             )
 
-    def extract_person_info(self, text: str) -> Person:
+    def extract_person_info(self, text: str) -> List[Person]:
         """Extract person info from OCR text."""
         try:
             if not text or not text.strip():
-                return Person()
+                return []
 
             # Create prompt
             prompt = self.prompt_template.invoke({"text": text})
 
             if self.structured_llm is not None:
                 # LLM structured extraction
-                result = self.structured_llm.invoke(prompt)
+                person_list_result = self.structured_llm.invoke(prompt)
+                persons = person_list_result.persons if person_list_result.persons else []
             else:
                 # Heuristic fallback
                 lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
@@ -96,21 +105,23 @@ class LangChainExtractor:
                 company_name = (
                     lines[2].lstrip("#").strip() if len(lines) >= 3 else None
                 )
-                result = Person(
+                person = Person(
                     full_name=full_name,
                     job_title=job_title,
                     company_name=company_name,
                 )
+                persons = [person]
 
-            # Compute confidence
-            confidence = self._calculate_confidence(result)
-            result.confidence = confidence
+            # Compute confidence for each person
+            for person in persons:
+                confidence = self._calculate_confidence(person)
+                person.confidence = confidence
 
-            return result
+            return persons
 
         except Exception as e:
             print(f"LangChain extraction error: {e}")
-            return Person(confidence=0.0)
+            return []
 
     def _calculate_confidence(self, person: Person) -> float:
         """Compute extraction confidence as fraction of present fields."""
@@ -167,10 +178,10 @@ def create_app() -> FastAPI:
                     )
 
                 # LangChain extract
-                person_info = extractor.extract_person_info(ocr_text)
+                person_info_list = extractor.extract_person_info(ocr_text)
 
                 return ExtractionResponse(
-                    success=True, data=person_info, ocr_text=ocr_text
+                    success=True, data=person_info_list, ocr_text=ocr_text
                 )
 
             except Exception as e:  # noqa: BLE001
