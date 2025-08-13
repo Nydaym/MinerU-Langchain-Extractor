@@ -1,26 +1,28 @@
-# Screenshot OCR Extractor
+# Universal OCR Information Extractor
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Extract full name, job title, and company from screenshots (e.g., business cards, profiles) using a local OCR service (MinerU by default) and LangChain. Provides a FastAPI REST API for processing images.
+A universal information extraction system that uses OCR and LangChain to extract various types of information from images. Supports multiple extraction types including person info, sentiment analysis, company details, product information, and contact details. Provides a FastAPI REST API for processing images.
 
 ---
 
 ## Features
 
-- OCR integration with a local MinerU service (default `http://127.0.0.1:8000/file_parse`)
-- LangChain parsing with LLM-enhanced mode and heuristic fallback
-- REST API for single image processing
-- JSON response format
+- **Universal Information Extraction**: Support for multiple extraction types (person, sentiment, company, product, contact)
+- **OCR Integration**: Works with local MinerU service (default `http://127.0.0.1:8000/file_parse`)
+- **LangChain Parsing**: LLM-enhanced mode with heuristic fallback for each extraction type
+- **REST API**: RESTful endpoints for image processing with flexible extraction type selection
+- **Backward Compatibility**: Legacy endpoints remain functional
+- **JSON Response Format**: Structured output for all extraction types
 
 ---
 
 ## Architecture
 
-1. Send image to OCR → receive Markdown text (`md_content`)
-2. Parse to structured fields (full name, job title, company name, confidence, missing fields)
-3. Optional LLM-enhanced parsing via LangChain (OpenAI-compatible API)
-4. Return JSON response via REST API
+1. **Image Upload** → OCR service → Markdown text (`md_content`)
+2. **Extraction Type Selection** → Choose from person, sentiment, company, product, or contact extraction
+3. **LangChain Processing** → LLM-enhanced parsing or heuristic fallback based on extraction type
+4. **Structured Output** → JSON response with extracted information and confidence scores
 
 ---
 
@@ -59,36 +61,84 @@ If no LLM is configured, the parser falls back to heuristics.
 
 ## Usage
 
+### Supported Extraction Types
+
+- **person**: Extract person information (name, job title, company)
+- **sentiment**: Analyze sentiment (positive/negative/neutral, confidence, keywords)
+- **company_info**: Extract company details (name, industry, address, contact)
+- **product_info**: Extract product information (name, price, brand, description)
+- **contact_info**: Extract contact details (name, phone, email, address)
+
 ### REST API
 
 Start the server:
 
 ```powershell
 uv run python -m src.server
-# Docs: http://127.0.0.1:8001/docs
+# API Documentation: http://127.0.0.1:8001/docs
 ```
 
-Endpoint: `POST /extract` (form field `file`)
+#### Get Available Extraction Types
 
 ```bash
+curl -X GET "http://127.0.0.1:8001/extraction_types"
+```
+
+#### Main Extraction Endpoint
+
+```bash
+# Extract person information (default)
 curl -X POST "http://127.0.0.1:8001/extract" \
+  -F "file=@example.jpg"
+
+# Extract sentiment analysis
+curl -X POST "http://127.0.0.1:8001/extract?extraction_type=sentiment" \
+  -F "file=@example.jpg"
+
+# Extract company information
+curl -X POST "http://127.0.0.1:8001/extract?extraction_type=company_info" \
   -F "file=@example.jpg"
 ```
 
-Sample response:
+#### Sample Responses
 
+**Person Information:**
 ```json
 {
   "success": true,
-  "data": {
+  "data": [{
     "full_name": "Ada Lovelace",
     "job_title": "Software Engineer",
     "company_name": "Example Inc",
     "confidence": 0.67
-  },
+  }],
+  "extraction_type": "person",
   "error_message": null,
   "ocr_text": "# Ada Lovelace\n# Software Engineer\n# Example Inc"
 }
+```
+
+**Sentiment Analysis:**
+```json
+{
+  "success": true,
+  "data": [{
+    "sentiment": "positive",
+    "confidence_score": 0.8,
+    "keywords": ["excellent", "great", "satisfied"],
+    "confidence": 0.75
+  }],
+  "extraction_type": "sentiment",
+  "error_message": null,
+  "ocr_text": "This product is excellent and great. Very satisfied!"
+}
+```
+
+#### Legacy Endpoint (Backward Compatibility)
+
+```bash
+curl -X POST "http://127.0.0.1:8001/extract_person" \
+  -F "file=@example.jpg"
 ```
 
 ---
@@ -119,16 +169,20 @@ The API returns a JSON response with the following structure:
 ```json
 {
   "success": true,
-  "data": {
-    "full_name": "...",
-    "job_title": "...",
-    "company_name": "...",
-    "confidence": 0.0
-  },
+  "data": [
+    {
+      "field1": "value1",
+      "field2": "value2",
+      "confidence": 0.75
+    }
+  ],
+  "extraction_type": "person|sentiment|company_info|product_info|contact_info",
   "error_message": null,
-  "ocr_text": "..."
+  "ocr_text": "Raw OCR text..."
 }
 ```
+
+The `data` field contains an array of extracted items, where each item's structure depends on the extraction type selected.
 
 ---
 
@@ -138,19 +192,76 @@ The API returns a JSON response with the following structure:
 MinerU/
   ├─ pyproject.toml
   ├─ uv.lock
+  ├─ DEVELOPER_GUIDE.md    # Developer guide
   └─ src/
-     ├─ __init__.py
-     ├─ server.py         # FastAPI service (includes LangChain parsing)
-     └─ ocr_client.py     # OCR client (MinerU /file_parse)
+     ├─ models/           # Data models
+     │  ├─ base.py        # Base abstract classes
+     │  ├─ person.py      # Person info model
+     │  ├─ sentiment.py   # Sentiment analysis model
+     │  ├─ company.py     # Company info model
+     │  ├─ product.py     # Product info model
+     │  └─ contact.py     # Contact info model
+     ├─ extractors/       # Extractors
+     │  ├─ base.py        # Extractor interface
+     │  ├─ langchain_extractor.py  # LangChain implementation
+     │  └─ registry.py    # Registry system
+     ├─ config/           # Configuration
+     │  └─ setup.py       # Default setup
+     ├─ plugins/          # Plugin examples
+     │  ├─ example_custom_model.py     # Custom model example
+     │  └─ example_custom_extractor.py # Custom extractor example
+     ├─ server.py         # FastAPI server
+     └─ ocr_client.py     # OCR client
+```
+
+---
+
+---
+
+## 🔧 Extending the System
+
+### Adding Custom Extraction Types
+
+This project uses a modular architecture that allows you to easily add custom extraction types:
+
+1. **Create Custom Model**: Inherit from `BaseExtractionModel`
+2. **Create Custom Extractor**: Implement `BaseExtractor` interface
+3. **Register Components**: Use the registry system to add new extraction types
+
+For detailed instructions, see `DEVELOPER_GUIDE.md`
+
+### Example: Adding Menu Information Extraction
+
+```python
+# 1. Define model
+class MenuInfo(BaseExtractionModel):
+    dish_name: Optional[str] = Field(default=None, description="Dish name")
+    price: Optional[str] = Field(default=None, description="Price")
+    
+    @classmethod
+    def get_extraction_type(cls) -> str:
+        return "menu_info"
+
+# 2. Create extractor
+class MenuExtractor(BaseExtractor):
+    def extract(self, text: str, model_class: Type[BaseExtractionModel]) -> List[BaseExtractionModel]:
+        # Implement extraction logic
+        pass
+
+# 3. Register
+from src.extractors.registry import registry
+registry.register_model(MenuInfo)
+registry.register_extractor(MenuExtractor())
 ```
 
 ---
 
 ## Troubleshooting
 
-- OCR connectivity: ensure MinerU is running at `http://127.0.0.1:8000`; `POST /file_parse` must accept form field `files`.
-- LLM disabled: set `LLM_*` environment variables in the API server. Heuristic fallback is automatic.
-- API docs: ensure the server is running and visit `http://127.0.0.1:8001/docs`.
+- **OCR connectivity**: ensure MinerU is running at `http://127.0.0.1:8000`; `POST /file_parse` must accept form field `files`.
+- **LLM disabled**: set `LLM_*` environment variables in the API server. Heuristic fallback is automatic.
+- **API docs**: ensure the server is running and visit `http://127.0.0.1:8001/docs`.
+- **Custom extractors not working**: check if models and extractors are properly registered, refer to `DEVELOPER_GUIDE.md`.
 
 ---
 
