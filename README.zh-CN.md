@@ -1,6 +1,7 @@
 # 通用 OCR 信息抽取器
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+📚 文档语言: [English](README.md) | [简体中文](README.zh-CN.md)  
+📖 开发者指南: [中文版](DEVELOPER_GUIDE.md) | [English](DEVELOPER_GUIDE_EN.md)
 
 通用信息抽取系统，使用 OCR 和 LangChain 从图片中抽取各种类型的信息。支持多种抽取类型，包括人员信息、情感分析、公司详情、产品信息和联系方式。提供 FastAPI REST API 服务进行图片处理。
 
@@ -192,7 +193,8 @@ API 返回 JSON 响应，结构如下：
 MinerU/
   ├─ pyproject.toml
   ├─ uv.lock
-  ├─ DEVELOPER_GUIDE.md    # 开发者指南
+  ├─ DEVELOPER_GUIDE.md    # 开发者指南（中文）
+  ├─ DEVELOPER_GUIDE_EN.md # 开发者指南（英文）
   └─ src/
      ├─ models/           # 数据模型
      │  ├─ base.py        # 基础抽象类
@@ -228,7 +230,7 @@ MinerU/
 2. **创建自定义抽取器**：实现 `BaseExtractor` 接口  
 3. **注册组件**：使用注册系统添加新的抽取类型
 
-详细指南请参考 `DEVELOPER_GUIDE.md`
+详细指南请参考 [开发者指南](DEVELOPER_GUIDE.md)
 
 ### 示例：添加菜单信息抽取
 
@@ -261,7 +263,7 @@ registry.register_extractor(MenuExtractor())
 - **无法连接 OCR**：确认 MinerU 服务已启动在 `http://127.0.0.1:8000`；检查 `POST /file_parse` 是否接受 `files` 字段。
 - **LLM 未启用**：需在 API 服务端设置 `LLM_*` 环境变量。未设置时将自动回退到启发式解析。
 - **API 文档不可访问**：确认服务已运行并访问 `http://127.0.0.1:8001/docs`。
-- **自定义抽取器未生效**：检查模型和抽取器是否正确注册，参考 `DEVELOPER_GUIDE.md`。
+- **自定义抽取器未生效**：检查模型和抽取器是否正确注册，参考 [开发者指南](DEVELOPER_GUIDE.md)。
 
 ---
 

@@ -1,6 +1,7 @@
 # Universal OCR Information Extractor
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+📚 Document Language: [English](README.md) | [简体中文](README.zh-CN.md)  
+📖 Developer Guide: [中文版](DEVELOPER_GUIDE.md) | [English](DEVELOPER_GUIDE_EN.md)
 
 A universal information extraction system that uses OCR and LangChain to extract various types of information from images. Supports multiple extraction types including person info, sentiment analysis, company details, product information, and contact details. Provides a FastAPI REST API for processing images.
 
@@ -192,7 +193,8 @@ The `data` field contains an array of extracted items, where each item's structu
 MinerU/
   ├─ pyproject.toml
   ├─ uv.lock
-  ├─ DEVELOPER_GUIDE.md    # Developer guide
+  ├─ DEVELOPER_GUIDE.md    # Developer guide (Chinese)
+  ├─ DEVELOPER_GUIDE_EN.md # Developer guide (English)
   └─ src/
      ├─ models/           # Data models
      │  ├─ base.py        # Base abstract classes
@@ -228,7 +230,7 @@ This project uses a modular architecture that allows you to easily add custom ex
 2. **Create Custom Extractor**: Implement `BaseExtractor` interface
 3. **Register Components**: Use the registry system to add new extraction types
 
-For detailed instructions, see `DEVELOPER_GUIDE.md`
+For detailed instructions, see [Developer Guide](DEVELOPER_GUIDE_EN.md)
 
 ### Example: Adding Menu Information Extraction
 
@@ -261,7 +263,7 @@ registry.register_extractor(MenuExtractor())
 - **OCR connectivity**: ensure MinerU is running at `http://127.0.0.1:8000`; `POST /file_parse` must accept form field `files`.
 - **LLM disabled**: set `LLM_*` environment variables in the API server. Heuristic fallback is automatic.
 - **API docs**: ensure the server is running and visit `http://127.0.0.1:8001/docs`.
-- **Custom extractors not working**: check if models and extractors are properly registered, refer to `DEVELOPER_GUIDE.md`.
+- **Custom extractors not working**: check if models and extractors are properly registered, refer to [Developer Guide](DEVELOPER_GUIDE_EN.md).
 
 ---
 
