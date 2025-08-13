@@ -1,7 +1,7 @@
 # Universal OCR Information Extractor
 
 📚 Document Language: [English](README.md) | [简体中文](README.zh-CN.md)  
-📖 Developer Guide: [中文版](DEVELOPER_GUIDE.md) | [English](DEVELOPER_GUIDE_EN.md)
+📖 Developer Guide:  [English](DEVELOPER_GUIDE_EN.md) | [中文版](DEVELOPER_GUIDE.md)
 
 A universal information extraction system that uses OCR and LangChain to extract various types of information from images. Supports multiple extraction types including person info, sentiment analysis, company details, product information, and contact details. Provides a FastAPI REST API for processing images.
 
