@@ -150,7 +150,10 @@ API server (see `src/server.py`):
 
 - `LLM_MODEL` (default `qwen3:4b-instruct-2507-fp16`)
 - `LLM_BASE_URL` (default `http://0.0.0.0:11434/v1`)
-- `LLM_API_KEY` (any non-empty value enables the LLM client)
+- `LLM_API_KEY` (optional; when empty, heuristic fallback is used)
+- `OCR_BASE_URL` (default `http://127.0.0.1:8000`)
+- `OCR_TIMEOUT_SECONDS` (default `30`)
+- `LOG_LEVEL` (default `INFO`)
 
 `.env` example:
 

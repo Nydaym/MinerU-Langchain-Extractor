@@ -2,14 +2,16 @@
 
 import os
 import re
-from typing import List, Dict, Any, Type
+import logging
+from typing import List, Type, Dict
 from pydantic import create_model, Field
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 from .base import BaseExtractor
 from ..models.base import BaseExtractionModel
-from ..models import Person, Sentiment, CompanyInfo, ProductInfo, ContactInfo
+
+logger = logging.getLogger(__name__)
 
 
 class LangChainExtractor(BaseExtractor):
@@ -74,6 +76,8 @@ class LangChainExtractor(BaseExtractor):
                 "7. 只抽取明确的信息，不要猜测。"
             )
         }
+        self._list_models: Dict[str, type] = {}
+        self._prompt_templates: Dict[str, ChatPromptTemplate] = {}
         
         # 初始化LLM
         self._init_llm()
@@ -82,17 +86,39 @@ class LangChainExtractor(BaseExtractor):
         """初始化LLM"""
         llm_model = os.getenv("LLM_MODEL", "qwen3:4b-instruct-2507-fp16")
         llm_base_url = os.getenv("LLM_BASE_URL", "http://0.0.0.0:11434/v1")
-        llm_api_key = os.getenv("LLM_API_KEY", "fake_key")
+        llm_api_key = os.getenv("LLM_API_KEY", "").strip()
 
         if llm_api_key:
-            self.llm = ChatOpenAI(
-                model=llm_model, base_url=llm_base_url, api_key=llm_api_key, temperature=0
-            )
+            try:
+                self.llm = ChatOpenAI(
+                    model=llm_model, base_url=llm_base_url, api_key=llm_api_key, temperature=0
+                )
+            except Exception as e:
+                logger.exception("LLM init failed, fallback to heuristic extraction: %s", e)
+                self.llm = None
         else:
             self.llm = None
 
         if self.llm is None:
-            print("警告：未找到LLM API密钥。将使用启发式回退方法工作。")
+            logger.warning("No LLM configured; using heuristic fallback.")
+
+    def _get_or_create_list_model(self, model_class: Type[BaseExtractionModel]) -> type:
+        extraction_type = model_class.get_extraction_type()
+        if extraction_type not in self._list_models:
+            self._list_models[extraction_type] = create_model(
+                f"{model_class.__name__}List",
+                items=(List[model_class], Field(description=f"抽取的{model_class.__name__}列表"))
+            )
+        return self._list_models[extraction_type]
+
+    def _get_or_create_prompt_template(self, extraction_type: str) -> ChatPromptTemplate:
+        if extraction_type not in self._prompt_templates:
+            system_prompt = self.system_prompts.get(extraction_type, "")
+            self._prompt_templates[extraction_type] = ChatPromptTemplate.from_messages([
+                ("system", system_prompt),
+                ("human", "从以下OCR文本中抽取信息：\n\n{text}")
+            ])
+        return self._prompt_templates[extraction_type]
     
     def extract(
         self, 
@@ -105,27 +131,23 @@ class LangChainExtractor(BaseExtractor):
                 return []
 
             extraction_type = model_class.get_extraction_type()
-            
-            # 创建列表模型
-            list_model_name = f"{model_class.__name__}List"
-            list_model = create_model(
-                list_model_name,
-                items=(List[model_class], Field(description=f"抽取的{model_class.__name__}列表"))
-            )
-
-            # 创建提示模板
-            system_prompt = self.system_prompts.get(extraction_type, "")
-            prompt_template = ChatPromptTemplate.from_messages([
-                ("system", system_prompt),
-                ("human", "从以下OCR文本中抽取信息：\n\n{text}")
-            ])
+            list_model = self._get_or_create_list_model(model_class)
+            prompt_template = self._get_or_create_prompt_template(extraction_type)
 
             if self.llm is not None:
-                # 使用LLM进行结构化抽取
-                structured_llm = self.llm.with_structured_output(schema=list_model)
-                prompt = prompt_template.invoke({"text": text})
-                result = structured_llm.invoke(prompt)
-                items = getattr(result, 'items', [])
+                try:
+                    # 使用LLM进行结构化抽取
+                    structured_llm = self.llm.with_structured_output(schema=list_model)
+                    prompt = prompt_template.invoke({"text": text})
+                    result = structured_llm.invoke(prompt)
+                    items = getattr(result, 'items', [])
+                except Exception as e:
+                    logger.exception(
+                        "LLM extraction failed for type '%s', fallback to heuristic extraction: %s",
+                        extraction_type,
+                        e,
+                    )
+                    items = self._heuristic_extraction(text, extraction_type, model_class)
             else:
                 # 启发式回退方法
                 items = self._heuristic_extraction(text, extraction_type, model_class)
@@ -137,7 +159,7 @@ class LangChainExtractor(BaseExtractor):
             return items
 
         except Exception as e:
-            print(f"信息抽取错误: {e}")
+            logger.exception("信息抽取错误: %s", e)
             return []
     
     def supports_model(self, model_class: Type[BaseExtractionModel]) -> bool:

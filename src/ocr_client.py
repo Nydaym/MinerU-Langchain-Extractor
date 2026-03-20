@@ -1,22 +1,38 @@
 """OCR client to call an existing OCR API service (MinerU)."""
 
+import logging
+import os
 import requests
 from typing import Optional, Dict, Any
 from pathlib import Path
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
+logger = logging.getLogger(__name__)
 
 class OCRClient:
     """Client for a local OCR API service (default: MinerU at 127.0.0.1:8000)."""
 
-    def __init__(self, base_url: str = "http://127.0.0.1:8000"):
+    def __init__(self, base_url: Optional[str] = None, timeout: Optional[int] = None):
         """
         Initialize the OCR client.
 
         Args:
             base_url: Base URL of the OCR service.
         """
-        self.base_url = base_url
-        self.parse_endpoint = f"{base_url}/file_parse"
+        self.base_url = (base_url or os.getenv("OCR_BASE_URL") or "http://127.0.0.1:8000").rstrip("/")
+        self.timeout = timeout or int(os.getenv("OCR_TIMEOUT_SECONDS", "30"))
+        self.parse_endpoint = f"{self.base_url}/file_parse"
+        self.session = requests.Session()
+
+        retries = Retry(
+            total=2,
+            backoff_factor=0.5,
+            status_forcelist=(429, 500, 502, 503, 504),
+            allowed_methods=frozenset(["POST"]),
+        )
+        self.session.mount("http://", HTTPAdapter(max_retries=retries))
+        self.session.mount("https://", HTTPAdapter(max_retries=retries))
 
     def extract_text_from_image(self, image_path: str) -> Optional[str]:
         """
@@ -31,7 +47,7 @@ class OCRClient:
         try:
             # Check file exists
             if not Path(image_path).exists():
-                print(f"Image file does not exist: {image_path}")
+                logger.warning("Image file does not exist: %s", image_path)
                 return None
 
             # Prepare request
@@ -40,28 +56,29 @@ class OCRClient:
                 headers = {"Accept": "application/json"}
 
                 # Send request
-                response = requests.post(
+                response = self.session.post(
                     self.parse_endpoint,
                     headers=headers,
                     files=files,
-                    timeout=30,
+                    timeout=self.timeout,
                 )
 
                 if response.status_code == 200:
                     result = response.json()
                     return self._extract_md_content(result)
                 else:
-                    print(
-                        f"OCR API request failed. status: {response.status_code}"
+                    logger.error(
+                        "OCR API request failed. status=%s response=%s",
+                        response.status_code,
+                        response.text,
                     )
-                    print(f"response: {response.text}")
                     return None
 
         except requests.exceptions.RequestException as e:
-            print(f"Error while requesting OCR API: {e}")
+            logger.exception("Error while requesting OCR API: %s", e)
             return None
         except Exception as e:
-            print(f"Unexpected error while processing image: {e}")
+            logger.exception("Unexpected error while processing image: %s", e)
             return None
 
     def _extract_md_content(self, api_response: Dict[str, Any]) -> Optional[str]:
@@ -77,7 +94,7 @@ class OCRClient:
         try:
             results = api_response.get("results", {})
             if not results:
-                print("No 'results' field in OCR API response")
+                logger.warning("No 'results' field in OCR API response")
                 return None
 
             # Return the first 'md_content' found
@@ -85,11 +102,11 @@ class OCRClient:
                 if isinstance(value, dict) and "md_content" in value:
                     return value["md_content"]
 
-            print("No 'md_content' field found in OCR API response")
+            logger.warning("No 'md_content' field found in OCR API response")
             return None
 
         except Exception as e:
-            print(f"Error parsing OCR API response: {e}")
+            logger.exception("Error parsing OCR API response: %s", e)
             return None
 
 

@@ -33,9 +33,11 @@ class BaseExtractionModel(BaseModel, ABC):
         子类可以重写此方法以实现自定义的置信度计算逻辑
         """
         filled_fields = 0
-        total_fields = len(self.__fields__) - 1  # 减去confidence字段
+        # Pydantic v2: use model_fields instead of __fields__
+        fields = self.__class__.model_fields
+        total_fields = len(fields) - 1  # 减去confidence字段
         
-        for field_name in self.__fields__:
+        for field_name in fields:
             if field_name != 'confidence':
                 value = getattr(self, field_name, None)
                 if value is not None and str(value).strip():

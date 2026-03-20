@@ -1,8 +1,11 @@
 """抽取器注册系统"""
 
+import logging
 from typing import Dict, Type, List, Optional
 from ..models.base import BaseExtractionModel
 from .base import BaseExtractor
+
+logger = logging.getLogger(__name__)
 
 
 class ExtractorRegistry:
@@ -23,8 +26,10 @@ class ExtractorRegistry:
             model_class: 模型类
         """
         extraction_type = model_class.get_extraction_type()
+        if self._models.get(extraction_type) is model_class:
+            return
         self._models[extraction_type] = model_class
-        print(f"已注册模型类型: {extraction_type} -> {model_class.__name__}")
+        logger.info("已注册模型类型: %s -> %s", extraction_type, model_class.__name__)
     
     def register_extractor(self, extractor: BaseExtractor) -> None:
         """注册抽取器
@@ -32,8 +37,11 @@ class ExtractorRegistry:
         Args:
             extractor: 抽取器实例
         """
+        for existing in self._extractors:
+            if existing.__class__ is extractor.__class__:
+                return
         self._extractors.append(extractor)
-        print(f"已注册抽取器: {extractor.__class__.__name__}")
+        logger.info("已注册抽取器: %s", extractor.__class__.__name__)
     
     def get_model_class(self, extraction_type: str) -> Optional[Type[BaseExtractionModel]]:
         """获取模型类
