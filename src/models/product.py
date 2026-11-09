@@ -8,11 +8,11 @@ from .base import BaseExtractionModel
 class ProductInfo(BaseExtractionModel):
     """产品信息模型"""
     
-    product_name: Optional[str] = Field(default=None, description="产品名称")
-    price: Optional[str] = Field(default=None, description="价格")
-    description: Optional[str] = Field(default=None, description="产品描述")
-    brand: Optional[str] = Field(default=None, description="品牌")
-    category: Optional[str] = Field(default=None, description="分类")
+    product_name: Optional[str] = Field(default=None, description="Product name")
+    price: Optional[str] = Field(default=None, description="Price including currency symbol and amount")
+    description: Optional[str] = Field(default=None, description="Concise product description")
+    brand: Optional[str] = Field(default=None, description="Brand name")
+    category: Optional[str] = Field(default=None, description="Product category")
     
     @classmethod
     def get_extraction_type(cls) -> str:

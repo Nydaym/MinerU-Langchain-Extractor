@@ -42,6 +42,14 @@ To use a local OCR service, set `OCR_BACKEND=local` and `OCR_BASE_URL` (default 
 
 ## 🎯 Core Concepts
 
+### DeepSeek structured extraction contract
+
+- Also pin `langchain-deepseek==1.1.1` and use the official `ChatDeepSeek` integration. Set `DEEPSEEK_API_KEY`; legacy `LLM_API_KEY` is a lower-priority alias. Defaults: `LLM_MODEL=deepseek-flash`, `LLM_BASE_URL=https://api.deepseek.com`, `LLM_MAX_TOKENS=8192`. Clear old local-model names and URLs when migrating.
+- Keep single-call extraction, without an Agent. `with_structured_output(method="json_mode", include_raw=True)` requests a JSON object, not native `json_schema` or tool calling. See [DeepSeek JSON Output](https://api-docs.deepseek.com/guides/json_mode).
+- Instructions, human templates, and model-facing field descriptions are English; extracted values are not translated. The dynamic output schema excludes application-computed `confidence`, requires all business fields (unknown nullable fields use `null`), and forbids extra fields.
+- Check raw `finish_reason` and blank content, then strictly validate complete raw JSON with Pydantic. Do not trust a parser that may repair incomplete JSON. Empty, truncated, or invalid output gets only one additional call. SDK network retries are separately configured with `max_retries=2` and a 60-second request timeout.
+- No-key mode retains heuristics. Configured-provider or validation failures raise a safe `ExtractionError`, producing API `success=false`, not successful empty or heuristic results. A valid `items=[]` remains successful. Put new model constraints in Pydantic fields; custom validators require extending the dynamic output-model generator as well.
+
 ### 1. Base Extraction Model (BaseExtractionModel)
 
 All extraction models should inherit from `BaseExtractionModel`:

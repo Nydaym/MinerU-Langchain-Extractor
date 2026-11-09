@@ -42,6 +42,14 @@ API 支持 PDF、PNG、JPG/JPEG、JP2、WebP、GIF 和 BMP，单个上传文件�
 
 ## 🎯 核心概念
 
+### DeepSeek 结构化抽取约定
+
+- 额外固定 `langchain-deepseek==1.1.1`，使用官方 `ChatDeepSeek` 集成。设置 `DEEPSEEK_API_KEY`；旧变量 `LLM_API_KEY` 作为低优先级兼容别名。默认 `LLM_MODEL=deepseek-flash`、`LLM_BASE_URL=https://api.deepseek.com`、`LLM_MAX_TOKENS=8192`。迁移时清除旧的本地模型地址和名称。
+- 保持单次模型抽取，不引入 Agent。`with_structured_output(method="json_mode", include_raw=True)` 请求 JSON 对象，不使用原生 `json_schema` 或工具调用。详见 [DeepSeek JSON Output](https://api-docs.deepseek.com/guides/json_mode)。
+- 系统提示、用户模板和发给模型的字段说明均为英文；抽取值不翻译。动态输出 Schema 排除应用计算的 `confidence`，要求业务字段全部出现，未知可空字段用 `null`，并禁止额外字段。
+- 先检查原始响应的 `finish_reason`、空内容，再对完整原始 JSON 运行 Pydantic 严格校验；不信任可能自动补全不完整 JSON 的解析结果。空响应、截断和校验失败只额外调用一次。SDK 的网络重试独立配置为 `max_retries=2`，单次请求超时 60 秒。
+- 无 Key 时使用现有规则；配置 Key 后的调用或校验失败抛出安全的 `ExtractionError`，API 返回 `success=false`，不伪装成成功的空结果或规则结果。正常 `items=[]` 仍为成功。新增模型的字段约束应放在 Pydantic 字段中；如果需要自定义校验器，须同步扩展动态输出模型的生成逻辑。
+
 ### 1. 基础抽取模型 (BaseExtractionModel)
 
 所有抽取模型都应该继承 `BaseExtractionModel`：

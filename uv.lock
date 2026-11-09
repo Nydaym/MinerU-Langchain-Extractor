@@ -645,6 +645,19 @@ wheels = [
 ]
 
 [[package]]
+name = "langchain-deepseek"
+version = "1.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "langchain-core" },
+    { name = "langchain-openai" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1b/6d/469f03fc140d7e8974246b41d65e71a3c7a6bc9ceba2f31bd5d8b0892c6a/langchain_deepseek-1.1.1.tar.gz", hash = "sha256:94267fb5500813fa41ea4bbc8b523551cfbf58f8966ed3b91dbb8991f8bd70e5", size = 166705, upload-time = "2026-09-22T04:29:55.678Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5d/1b/da9b7fcdb205acf5405dc961d8edaf779eab18326938811530b3032d6803/langchain_deepseek-1.1.1-py3-none-any.whl", hash = "sha256:aec298233606b1289898543e56f90373f71e919b586f580f5e161c018ab21dcb", size = 11692, upload-time = "2026-09-22T04:29:54.462Z" },
+]
+
+[[package]]
 name = "langchain-openai"
 version = "1.7.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1250,6 +1263,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "langchain" },
     { name = "langchain-core" },
+    { name = "langchain-deepseek" },
     { name = "langchain-openai" },
     { name = "pydantic" },
     { name = "python-multipart" },
@@ -1263,6 +1277,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.100.0" },
     { name = "langchain", specifier = "==1.4.9" },
     { name = "langchain-core", specifier = "==1.7.6" },
+    { name = "langchain-deepseek", specifier = "==1.1.1" },
     { name = "langchain-openai", specifier = "==1.7.4" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "python-multipart", specifier = ">=0.0.6" },

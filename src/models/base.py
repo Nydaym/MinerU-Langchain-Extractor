@@ -12,7 +12,7 @@ class BaseExtractionModel(BaseModel, ABC):
     这样可以确保一致的接口和行为。
     """
     
-    confidence: float = Field(default=0.0, description="抽取置信度", ge=0.0, le=1.0)
+    confidence: float = Field(default=0.0, description="Application-computed completeness score", ge=0.0, le=1.0)
     
     @classmethod
     @abstractmethod
