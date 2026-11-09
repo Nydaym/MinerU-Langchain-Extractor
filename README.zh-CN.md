@@ -62,6 +62,8 @@ uv run uvicorn src.server:app --host 0.0.0.0 --port 8001
 
 未配置 LLM 时，会自动回退到启发式解析。
 
+针对单次字段抽取，DeepSeek 请求通过 `extra_body={"thinking":{"type":"disabled"}}` 显式关闭思考模式；JSON 模式和本地 Pydantic 校验保持启用。
+
 默认情况下，上传的文档会发送给 MinerU 进行 OCR。配置 `DEEPSEEK_API_KEY`（或旧变量 `LLM_API_KEY`）后，OCR 文本还会发送到所配置的 DeepSeek 端点。API 请求为同步处理，会等待 OCR 和信息抽取完成；请为反向代理或网关设置足够的请求超时。
 
 抽取采用 `ChatDeepSeek.with_structured_output(method="json_mode", include_raw=True)`，发送 `response_format={"type":"json_object"}`。英文提示词包含 JSON Schema 和示例，抽取值保持原文语言。它**不是服务端强制 JSON Schema**：程序对完整原始 JSON 做 Pydantic 校验，拒绝额外字段和错误类型，要求每条记录包含全部字段（未知的可空字段填 `null`），并在本地计算 `confidence`。空响应、截断及校验失败最多重试一次，仍失败返回 `success=false`；配置了 Key 的服务调用失败不再静默回退到规则结果。合法的 `{"items":[]}` 表示成功但未抽取到记录。未配置 Key 时仍使用启发式规则。参见 [DeepSeek JSON Output](https://api-docs.deepseek.com/guides/json_mode)。
