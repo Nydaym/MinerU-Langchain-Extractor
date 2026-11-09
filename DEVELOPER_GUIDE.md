@@ -30,6 +30,16 @@ src/
 └── server.py              # FastAPI服务器
 ```
 
+## 运行与服务配置
+
+项目固定使用 `langchain==1.4.9`、`langchain-core==1.7.6` 和 `langchain-openai==1.7.4`。默认 OCR 使用 MinerU 官方在线 v4 API；在线模型由服务提供方维护，不需要安装本地 `mineru` 包。启动前将 `MINERU_API_TOKEN` 导出到进程环境中（在 [MinerU Token 页面](https://mineru.net/apiManage/token)获取）。程序不会自动加载 `.env`；`.env.example` 仅供参考，切勿提交真实凭据。
+
+默认 `MINERU_MODEL_VERSION=vlm`，也可设置为 `pipeline`。客户端按官方流程创建批量任务并获取上传 URL、上传文件、轮询任务，最后下载结果 ZIP 并读取 `full.md`。`OCR_TIMEOUT_SECONDS=30` 是单个 HTTP 请求的超时；`MINERU_TASK_TIMEOUT_SECONDS=300` 限制工作流等待时间，单个网络请求不保证严格在该墙钟时限内结束。`MINERU_POLL_INTERVAL_SECONDS` 默认 2 秒。
+
+API 支持 PDF、PNG、JPG/JPEG、JP2、WebP、GIF 和 BMP，单个上传文件最大 200 MiB；客户端还将结果 ZIP 限制为 64 MiB、`full.md` 限制为 16 MiB。MinerU 在线页数限制依服务方案而异，请参考[官方 API 文档](https://mineru.net/apiManage/docs)。请求为同步处理，会等待 OCR 和抽取完成；请为反向代理或网关配置足够的请求超时。上传文档会发送给 MinerU；配置 LLM 后，OCR 文本会发送到所配置的 LLM 端点。
+
+如需改用本地 OCR 服务，设置 `OCR_BACKEND=local` 和 `OCR_BASE_URL`（默认 `http://127.0.0.1:8000`）。本地端点需支持 `POST /file_parse` 和 multipart 字段 `files`。
+
 ## 🎯 核心概念
 
 ### 1. 基础抽取模型 (BaseExtractionModel)

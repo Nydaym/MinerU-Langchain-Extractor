@@ -10,7 +10,7 @@ from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
 
-class OCRClient:
+class LocalOCRClient:
     """Client for a local OCR API service (default: MinerU at 127.0.0.1:8000)."""
 
     def __init__(self, base_url: Optional[str] = None, timeout: Optional[int] = None):
@@ -68,17 +68,16 @@ class OCRClient:
                     return self._extract_md_content(result)
                 else:
                     logger.error(
-                        "OCR API request failed. status=%s response=%s",
+                        "OCR API request failed. status=%s",
                         response.status_code,
-                        response.text,
                     )
                     return None
 
         except requests.exceptions.RequestException as e:
-            logger.exception("Error while requesting OCR API: %s", e)
+            logger.error("Error while requesting local OCR API (%s)", type(e).__name__)
             return None
         except Exception as e:
-            logger.exception("Unexpected error while processing image: %s", e)
+            logger.error("Unexpected local OCR error (%s)", type(e).__name__)
             return None
 
     def _extract_md_content(self, api_response: Dict[str, Any]) -> Optional[str]:
@@ -106,7 +105,24 @@ class OCRClient:
             return None
 
         except Exception as e:
-            logger.exception("Error parsing OCR API response: %s", e)
+            logger.error("Invalid local OCR response (%s)", type(e).__name__)
             return None
 
+
+class OCRClient:
+    """Hosted MinerU by default; explicit local settings preserve the legacy client."""
+
+    def __init__(self, base_url: Optional[str] = None, timeout: Optional[int] = None):
+        from .mineru_client import MinerUClient
+
+        backend = os.getenv("OCR_BACKEND", "mineru").lower()
+        if base_url is not None or backend == "local":
+            self.client = LocalOCRClient(base_url=base_url, timeout=timeout)
+        elif backend == "mineru":
+            self.client = MinerUClient()
+        else:
+            raise ValueError("OCR_BACKEND 必须是 mineru 或 local")
+
+    def extract_text_from_image(self, image_path: str) -> Optional[str]:
+        return self.client.extract_text_from_image(image_path)
 

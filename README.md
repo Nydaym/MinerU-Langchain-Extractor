@@ -3,14 +3,14 @@
 📚 Document Language: [English](README.md) | [简体中文](README.zh-CN.md)  
 📖 Developer Guide:  [English](DEVELOPER_GUIDE_EN.md) | [中文版](DEVELOPER_GUIDE.md)
 
-A universal information extraction system that uses OCR and LangChain to extract various types of information from images. Supports multiple extraction types including person info, sentiment analysis, company details, product information, and contact details. Provides a FastAPI REST API for processing images.
+A universal information extraction system that uses OCR and LangChain to extract information from PDFs and images. Supports person info, sentiment analysis, company details, product information, and contact details through a FastAPI REST API.
 
 ---
 
 ## Features
 
 - **Universal Information Extraction**: Support for multiple extraction types (person, sentiment, company, product, contact)
-- **OCR Integration**: Works with local MinerU service (default `http://127.0.0.1:8000/file_parse`)
+- **OCR Integration**: Uses the official hosted MinerU API by default; an existing local OCR service remains available as an option
 - **LangChain Parsing**: LLM-enhanced mode with heuristic fallback for each extraction type
 - **REST API**: RESTful endpoints for image processing with flexible extraction type selection
 - **Backward Compatibility**: Legacy endpoints remain functional
@@ -20,7 +20,7 @@ A universal information extraction system that uses OCR and LangChain to extract
 
 ## Architecture
 
-1. **Image Upload** → OCR service → Markdown text (`md_content`)
+1. **PDF or image upload** → OCR service → Markdown text
 2. **Extraction Type Selection** → Choose from person, sentiment, company, product, or contact extraction
 3. **LangChain Processing** → LLM-enhanced parsing or heuristic fallback based on extraction type
 4. **Structured Output** → JSON response with extracted information and confidence scores
@@ -30,14 +30,18 @@ A universal information extraction system that uses OCR and LangChain to extract
 ## Prerequisites
 
 - Python 3.10+
-- A local OCR service (MinerU by default) at `http://127.0.0.1:8000` with `POST /file_parse` (form field `files`)
-- Optional: OpenAI-compatible LLM endpoint for enhanced parsing
+- A MinerU API token for hosted OCR (get one at [MinerU API tokens](https://mineru.net/apiManage/token))
+- Optional: an OpenAI-compatible LLM endpoint for enhanced parsing
+
+The hosted model is maintained by MinerU; no local `mineru` Python package or OCR server is required. The service applies its own plan-dependent page limits; check the [official API documentation](https://mineru.net/apiManage/docs).
 
 ---
 
 ## Quickstart (uv)
 
-Run directly with uv; dependencies are resolved from `pyproject.toml`.
+Run directly with uv; dependencies are pinned in `pyproject.toml` and `uv.lock`. The current LangChain pins are `langchain==1.4.9`, `langchain-core==1.7.6`, and `langchain-openai==1.7.4`.
+
+Set `MINERU_API_TOKEN` in the process environment before starting the server. `.env.example` is a reference only; the application does not load `.env` files automatically. Do not commit real tokens or API keys.
 
 PowerShell (Windows):
 
@@ -57,6 +61,10 @@ uv run uvicorn src.server:app --host 0.0.0.0 --port 8001
 ```
 
 If no LLM is configured, the parser falls back to heuristics.
+
+By default, uploaded documents are sent to MinerU for OCR. When `LLM_API_KEY` is configured, OCR text is also sent to the configured LLM endpoint. Requests are synchronous and wait for OCR and extraction to finish, so configure reverse proxies or gateways with suitable request timeouts.
+
+The server accepts PDF, PNG, JPG/JPEG, JP2, WebP, GIF, and BMP uploads up to 200 MiB. The client limits a downloaded MinerU result ZIP to 64 MiB and `full.md` to 16 MiB. MinerU's hosted page limits are separate and vary by service plan.
 
 ---
 
@@ -146,23 +154,30 @@ curl -X POST "http://127.0.0.1:8001/extract_person" \
 
 ## Environment Variables
 
-API server (see `src/server.py`):
+The API server reads exported environment variables; it does not automatically load `.env`. Set at least `MINERU_API_TOKEN` for the default hosted OCR backend.
 
-- `LLM_MODEL` (default `qwen3:4b-instruct-2507-fp16`)
-- `LLM_BASE_URL` (default `http://0.0.0.0:11434/v1`)
-- `LLM_API_KEY` (optional; when empty, heuristic fallback is used)
-- `OCR_BASE_URL` (default `http://127.0.0.1:8000`)
-- `OCR_TIMEOUT_SECONDS` (default `30`)
-- `LOG_LEVEL` (default `INFO`)
+- `MINERU_API_TOKEN`: token from [MinerU API tokens](https://mineru.net/apiManage/token); never place a real token in the repository
+- `MINERU_MODEL_VERSION`: `vlm` (default) or `pipeline`
+- `OCR_TIMEOUT_SECONDS`: 30-second timeout for each individual HTTP request
+- `MINERU_TASK_TIMEOUT_SECONDS`: 300-second bound for the upload, polling, and result workflow; individual network requests are not guaranteed to stop at this exact wall-clock deadline
+- `MINERU_POLL_INTERVAL_SECONDS`: polling interval, default `2` seconds
+- `OCR_BACKEND`: `mineru` by default; set to `local` to use the existing local `/file_parse` service
+- `OCR_BASE_URL`: local OCR service URL when `OCR_BACKEND=local` (default `http://127.0.0.1:8000`)
+- `LLM_MODEL`: default `qwen3:4b-instruct-2507-fp16`
+- `LLM_BASE_URL`: default `http://127.0.0.1:11434/v1`
+- `LLM_API_KEY`: optional; when empty, heuristic extraction is used
+- `LOG_LEVEL`: default `INFO`
 
-`.env` example:
+Example shell configuration:
 
-```dotenv
-# For API server LLM
-LLM_MODEL=qwen3:4b-instruct-2507-fp16
-LLM_BASE_URL=http://127.0.0.1:11434/v1
-LLM_API_KEY=your_key
+```bash
+export MINERU_API_TOKEN="paste-your-token-here"
+# Optional OpenAI-compatible LLM configuration:
+export LLM_BASE_URL="http://127.0.0.1:11434/v1"
+export LLM_API_KEY="your-llm-key"
 ```
+
+To use a local OCR service instead, export `OCR_BACKEND=local` and `OCR_BASE_URL=http://127.0.0.1:8000`. The local endpoint must accept `POST /file_parse` with a multipart `files` field.
 
 ---
 
@@ -263,7 +278,8 @@ registry.register_extractor(MenuExtractor())
 
 ## Troubleshooting
 
-- **OCR connectivity**: ensure MinerU is running at `http://127.0.0.1:8000`; `POST /file_parse` must accept form field `files`.
+- **Hosted OCR setup**: verify `MINERU_API_TOKEN`, model version, quota, and current file/page limits in the [MinerU API documentation](https://mineru.net/apiManage/docs).
+- **Local OCR connectivity**: set `OCR_BACKEND=local`; ensure `OCR_BASE_URL` serves `POST /file_parse` with form field `files`.
 - **LLM disabled**: set `LLM_*` environment variables in the API server. Heuristic fallback is automatic.
 - **API docs**: ensure the server is running and visit `http://127.0.0.1:8001/docs`.
 - **Custom extractors not working**: check if models and extractors are properly registered, refer to [Developer Guide](DEVELOPER_GUIDE_EN.md).

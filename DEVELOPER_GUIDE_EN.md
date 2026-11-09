@@ -30,6 +30,16 @@ src/
 └── server.py              # FastAPI server
 ```
 
+## Running and Service Configuration
+
+The project pins `langchain==1.4.9`, `langchain-core==1.7.6`, and `langchain-openai==1.7.4`. OCR uses the official hosted MinerU v4 API by default; its online models are maintained by the provider, so no local `mineru` package is needed. Export `MINERU_API_TOKEN` before starting the process (get one from the [MinerU token page](https://mineru.net/apiManage/token)). The application does not load `.env` automatically; `.env.example` is a reference, and real credentials must never be committed.
+
+`MINERU_MODEL_VERSION` defaults to `vlm`; `pipeline` is also supported. The client follows the official batch flow: create a task and get an upload URL, upload the document, poll the task, then download the result ZIP and read `full.md`. `OCR_TIMEOUT_SECONDS=30` applies to each HTTP request. `MINERU_TASK_TIMEOUT_SECONDS=300` bounds the workflow wait, but an individual network request is not guaranteed to stop at that exact wall-clock deadline. `MINERU_POLL_INTERVAL_SECONDS` defaults to 2 seconds.
+
+The API accepts PDF, PNG, JPG/JPEG, JP2, WebP, GIF, and BMP uploads up to 200 MiB. Client-side result limits are 64 MiB for the ZIP and 16 MiB for `full.md`. MinerU's hosted page limits vary by plan; check the [official API documentation](https://mineru.net/apiManage/docs). Requests are synchronous and wait for OCR and extraction, so configure reverse proxies or gateways with suitable timeouts. Uploaded documents are sent to MinerU; if an LLM is configured, OCR text is sent to that configured LLM endpoint.
+
+To use a local OCR service, set `OCR_BACKEND=local` and `OCR_BASE_URL` (default `http://127.0.0.1:8000`). It must provide `POST /file_parse` and accept the multipart field `files`.
+
 ## 🎯 Core Concepts
 
 ### 1. Base Extraction Model (BaseExtractionModel)
