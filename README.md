@@ -62,6 +62,8 @@ uv run uvicorn src.server:app --host 0.0.0.0 --port 8001
 
 If no LLM is configured, the parser falls back to heuristics.
 
+DeepSeek requests explicitly disable thinking with `extra_body={"thinking":{"type":"disabled"}}` for this single-step extraction task. JSON mode and local Pydantic validation remain enabled.
+
 By default, uploaded documents are sent to MinerU for OCR. When `DEEPSEEK_API_KEY` (or legacy `LLM_API_KEY`) is configured, OCR text is also sent to the configured DeepSeek endpoint. Requests are synchronous and wait for OCR and extraction to finish, so configure reverse proxies or gateways with suitable request timeouts.
 
 Extraction uses `ChatDeepSeek.with_structured_output(method="json_mode", include_raw=True)`, which sends `response_format={"type":"json_object"}`. English instructions include a JSON schema and example; extracted values retain their source language. This is **not provider-enforced JSON Schema**: the application validates the complete raw JSON with Pydantic, rejects extra fields and invalid types, requires every record field (use `null` for unknown nullable fields), and computes `confidence` locally. Empty, truncated, or invalid output is retried once, then returned as `success=false`; configured-provider failures do not silently fall back to heuristics. A valid `{"items":[]}` is an empty successful extraction. No-key mode still uses heuristics. See [DeepSeek JSON Output](https://api-docs.deepseek.com/guides/json_mode).

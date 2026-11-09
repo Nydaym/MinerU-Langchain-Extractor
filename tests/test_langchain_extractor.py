@@ -29,6 +29,7 @@ class LangChainExtractorTests(unittest.TestCase):
         constructor.assert_called_once()
         self.assertEqual(constructor.call_args.kwargs["api_key"], "test-key")
         self.assertEqual(constructor.call_args.kwargs["max_tokens"], 8192)
+        self.assertEqual(constructor.call_args.kwargs["extra_body"], {"thinking": {"type": "disabled"}})
         return extractor, llm
 
     @staticmethod
@@ -64,6 +65,12 @@ class LangChainExtractorTests(unittest.TestCase):
                 self.assertIn("JSON Schema", messages[0].content)
                 self.assertIn("do not translate", messages[0].content)
                 self.assertIn("Example JSON", messages[0].content)
+
+    def test_product_prompt_preserves_multiple_price_tiers(self):
+        extractor, _ = self.make_extractor()
+        prompt = extractor._get_or_create_prompt_template(ProductInfo).invoke({"text": "OCR_SAMPLE"}).to_messages()
+        self.assertIn("include all pricing tiers with their units, minimum order quantities", prompt[0].content)
+        self.assertIn("retain both", prompt[0].content)
 
     def test_blank_output_retries_once_then_succeeds(self):
         extractor, llm = self.make_extractor()
@@ -134,11 +141,15 @@ class LangChainExtractorTests(unittest.TestCase):
             })
 
         with httpx.Client(transport=httpx.MockTransport(handle)) as http_client:
-            model = ChatDeepSeek(model="deepseek-flash", api_key="test-key", http_client=http_client)
-            extractor, _ = self.make_extractor(model)
+            with patch(
+                "src.extractors.langchain_extractor.ChatDeepSeek",
+                side_effect=lambda **kwargs: ChatDeepSeek(**kwargs, http_client=http_client),
+            ):
+                extractor = LangChainExtractor()
             self.assertEqual(extractor.extract("张明\n工程师", Person)[0].full_name, "张明")
         self.assertEqual(len(captured), 1)
         self.assertEqual(captured[0]["response_format"], {"type": "json_object"})
+        self.assertEqual(captured[0]["thinking"], {"type": "disabled"})
         self.assertNotIn("tools", captured[0])
         self.assertNotIn("tool_choice", captured[0])
 

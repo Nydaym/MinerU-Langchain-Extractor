@@ -53,6 +53,9 @@ class LangChainExtractor(BaseExtractor):
             "product_info": (
                 "Extract product names, prices, descriptions, brands, and categories explicitly present "
                 "in the OCR text. Preserve currency symbols and amounts in prices. "
+                "In the price field, include all pricing tiers with their units, minimum order quantities, "
+                "and conditions. When both bulk and per-item prices are stated, retain both; never select "
+                "only one or drop the associated order requirements. "
                 "Keep descriptions concise and grounded in the source. A category may describe a product's "
                 "type or intended use, but do not infer a category that is not stated."
             ),
@@ -82,7 +85,8 @@ class LangChainExtractor(BaseExtractor):
                     raise ValueError("Invalid token limit")
                 self.llm = ChatDeepSeek(
                     model=llm_model, base_url=llm_base_url, api_key=llm_api_key,
-                    temperature=0, timeout=60, max_retries=2, max_tokens=max_tokens
+                    temperature=0, timeout=60, max_retries=2, max_tokens=max_tokens,
+                    extra_body={"thinking": {"type": "disabled"}},
                 )
             except Exception:
                 raise ExtractionError("DeepSeek 初始化失败，请检查模型、地址及 LLM_MAX_TOKENS 配置") from None
