@@ -85,13 +85,14 @@ class LangChainExtractor(BaseExtractor):
     def _init_llm(self):
         """初始化LLM"""
         llm_model = os.getenv("LLM_MODEL", "qwen3:4b-instruct-2507-fp16")
-        llm_base_url = os.getenv("LLM_BASE_URL", "http://0.0.0.0:11434/v1")
+        llm_base_url = os.getenv("LLM_BASE_URL", "http://127.0.0.1:11434/v1")
         llm_api_key = os.getenv("LLM_API_KEY", "").strip()
 
         if llm_api_key:
             try:
                 self.llm = ChatOpenAI(
-                    model=llm_model, base_url=llm_base_url, api_key=llm_api_key, temperature=0
+                    model=llm_model, base_url=llm_base_url, api_key=llm_api_key,
+                    temperature=0, timeout=60, max_retries=2
                 )
             except Exception as e:
                 logger.exception("LLM init failed, fallback to heuristic extraction: %s", e)
@@ -137,7 +138,9 @@ class LangChainExtractor(BaseExtractor):
             if self.llm is not None:
                 try:
                     # 使用LLM进行结构化抽取
-                    structured_llm = self.llm.with_structured_output(schema=list_model)
+                    structured_llm = self.llm.with_structured_output(
+                        schema=list_model, method="function_calling"
+                    )
                     prompt = prompt_template.invoke({"text": text})
                     result = structured_llm.invoke(prompt)
                     items = getattr(result, 'items', [])

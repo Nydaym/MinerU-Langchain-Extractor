@@ -27,7 +27,7 @@ def create_app() -> FastAPI:
     
     app = FastAPI(
         title="通用OCR信息抽取API",
-        description="使用OCR和LangChain从图片中抽取各种类型的信息",
+        description="使用 MinerU 在线解析和 LangChain 从图片或 PDF 中抽取信息",
         version="2.0.0",
     )
 
@@ -49,42 +49,53 @@ def create_app() -> FastAPI:
             description="抽取类型"
         )
     ):
-        """从上传的图片文件中抽取指定类型的信息"""
+        """从上传的图片或 PDF 文件中抽取指定类型的信息"""
         # 验证文件类型
-        if not file.content_type or not file.content_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail="请上传图片文件")
+        suffix = Path(file.filename or "").suffix.lower()
+        allowed_suffixes = {".pdf", ".png", ".jpg", ".jpeg", ".jp2", ".webp", ".gif", ".bmp"}
+        if suffix not in allowed_suffixes or not file.content_type or not (
+            file.content_type.startswith("image/") or file.content_type == "application/pdf"
+        ):
+            await file.close()
+            raise HTTPException(status_code=400, detail="请上传 PDF 或 PNG/JPG/JPEG/JP2/WebP/GIF/BMP 图片")
 
         # 检查抽取类型是否支持
         if not registry.get_model_class(extraction_type):
             supported_types = [t["type"] for t in registry.get_supported_types()]
+            await file.close()
             raise HTTPException(
                 status_code=400, 
                 detail=f"不支持的抽取类型: {extraction_type}。支持的类型: {', '.join(supported_types)}"
             )
 
         # 保存到临时文件
-        with tempfile.NamedTemporaryFile(
-            delete=False, suffix=Path(file.filename).suffix
-        ) as temp_file:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir) / f"upload{suffix}"
             try:
                 # 分块写入，避免大文件一次性读入内存
-                while True:
-                    chunk = await file.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    temp_file.write(chunk)
-                temp_file.flush()
+                size = 0
+                with temp_path.open("wb") as temp_file:
+                    while True:
+                        chunk = await file.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        size += len(chunk)
+                        if size > 200 * 1024 * 1024:
+                            raise HTTPException(status_code=413, detail="文件不能超过 200 MiB")
+                        temp_file.write(chunk)
+                if not size:
+                    raise HTTPException(status_code=400, detail="文件不能为空")
 
                 # OCR文本抽取（在线程池执行，避免阻塞事件循环）
                 ocr_text = await run_in_threadpool(
                     ocr_client.extract_text_from_image,
-                    temp_file.name,
+                    str(temp_path),
                 )
 
                 if ocr_text is None:
                     return ExtractionResponse(
                         success=False,
-                        error_message="OCR文本抽取失败，请确保OCR服务正在运行。",
+                        error_message="OCR 文本抽取失败，请检查所选 OCR 服务的配置。",
                         extraction_type=extraction_type
                     )
 
@@ -105,6 +116,8 @@ def create_app() -> FastAPI:
                     ocr_text=ocr_text
                 )
 
+            except HTTPException:
+                raise
             except ValueError as e:
                 logger.warning("Invalid extraction request: %s", e)
                 return ExtractionResponse(
@@ -121,10 +134,6 @@ def create_app() -> FastAPI:
                 )
             finally:
                 await file.close()
-                try:
-                    os.unlink(temp_file.name)
-                except Exception:
-                    pass
 
     # 保持向后兼容性的旧接口
     @app.post("/extract_person", response_model=ExtractionResponse)
@@ -153,5 +162,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
