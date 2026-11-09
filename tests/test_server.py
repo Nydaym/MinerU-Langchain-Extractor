@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from src.models.person import Person
 from src.ocr_client import OCRClient
 from src.server import create_app
+from src.extractors.langchain_extractor import ExtractionError
 
 
 class ServerTests(unittest.TestCase):
@@ -84,6 +85,17 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(invalid.status_code, 400)
         self.assertEqual(empty.status_code, 400)
         ocr.extract_text_from_image.assert_not_called()
+
+    def test_extraction_validation_failure_is_not_reported_as_success(self):
+        ocr = MagicMock()
+        ocr.extract_text_from_image.return_value = "private OCR text"
+        client = self.make_client(ocr)
+        with patch("src.server.registry.extract", side_effect=ExtractionError("DeepSeek 输出校验失败")):
+            response = client.post("/extract", files={"file": ("sample.pdf", b"%PDF-example", "application/pdf")})
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["success"])
+        self.assertEqual(response.json()["error_message"], "DeepSeek 输出校验失败")
+        self.assertIsNone(response.json()["data"])
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 """情感分析模型"""
 
-from typing import Optional, List
+from typing import Optional, List, Literal
 from pydantic import Field
 from .base import BaseExtractionModel
 
@@ -8,9 +8,9 @@ from .base import BaseExtractionModel
 class Sentiment(BaseExtractionModel):
     """情感分析模型"""
     
-    sentiment: Optional[str] = Field(default=None, description="情感倾向 (positive/negative/neutral)")
-    confidence_score: float = Field(default=0.0, description="情感置信度分数", ge=0.0, le=1.0)
-    keywords: Optional[List[str]] = Field(default=None, description="关键词")
+    sentiment: Optional[Literal["positive", "negative", "neutral"]] = Field(default=None, description="Overall sentiment")
+    confidence_score: float = Field(default=0.0, description="Sentiment confidence score between 0 and 1", ge=0.0, le=1.0)
+    keywords: Optional[List[str]] = Field(default=None, description="Supporting keywords from the source text")
     
     @classmethod
     def get_extraction_type(cls) -> str:

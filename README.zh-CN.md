@@ -31,7 +31,7 @@
 
 - Python 3.10+
 - MinerU API Token（可在 [MinerU API Token 页面](https://mineru.net/apiManage/token)获取）
-- 可选：OpenAI 兼容的 LLM 接口
+- 可选：用于模型抽取的 DeepSeek API Key
 
 默认在线模型由 MinerU 提供和维护；无需安装本地 `mineru` Python 包或启动 OCR 服务。在线服务的页数限制取决于服务方案，请查看 [MinerU 官方 API 文档](https://mineru.net/apiManage/docs)。
 
@@ -39,7 +39,7 @@
 
 ## 快速开始（使用 uv）
 
-使用 uv 直接运行；依赖版本由 `pyproject.toml` 和 `uv.lock` 固定。当前 LangChain 版本为 `langchain==1.4.9`、`langchain-core==1.7.6`、`langchain-openai==1.7.4`。
+使用 uv 直接运行；依赖版本由 `pyproject.toml` 和 `uv.lock` 固定。当前 LangChain 版本为 `langchain==1.4.9`、`langchain-core==1.7.6`、`langchain-openai==1.7.4`、`langchain-deepseek==1.1.1`。
 
 启动前请在进程环境中设置 `MINERU_API_TOKEN`。`.env.example` 仅供参考，程序不会自动加载 `.env` 文件。不要将真实 Token 或 API Key 提交到仓库。
 
@@ -62,7 +62,9 @@ uv run uvicorn src.server:app --host 0.0.0.0 --port 8001
 
 未配置 LLM 时，会自动回退到启发式解析。
 
-默认情况下，上传的文档会发送给 MinerU 进行 OCR。配置 `LLM_API_KEY` 后，OCR 文本还会发送到所配置的 LLM 服务端点。API 请求为同步处理，会等待 OCR 和信息抽取完成；请为反向代理或网关设置足够的请求超时。
+默认情况下，上传的文档会发送给 MinerU 进行 OCR。配置 `DEEPSEEK_API_KEY`（或旧变量 `LLM_API_KEY`）后，OCR 文本还会发送到所配置的 DeepSeek 端点。API 请求为同步处理，会等待 OCR 和信息抽取完成；请为反向代理或网关设置足够的请求超时。
+
+抽取采用 `ChatDeepSeek.with_structured_output(method="json_mode", include_raw=True)`，发送 `response_format={"type":"json_object"}`。英文提示词包含 JSON Schema 和示例，抽取值保持原文语言。它**不是服务端强制 JSON Schema**：程序对完整原始 JSON 做 Pydantic 校验，拒绝额外字段和错误类型，要求每条记录包含全部字段（未知的可空字段填 `null`），并在本地计算 `confidence`。空响应、截断及校验失败最多重试一次，仍失败返回 `success=false`；配置了 Key 的服务调用失败不再静默回退到规则结果。合法的 `{"items":[]}` 表示成功但未抽取到记录。未配置 Key 时仍使用启发式规则。参见 [DeepSeek JSON Output](https://api-docs.deepseek.com/guides/json_mode)。
 
 服务接受最大 200 MiB 的 PDF、PNG、JPG/JPEG、JP2、WebP、GIF 和 BMP 文件。客户端对下载结果 ZIP 限制为 64 MiB，对 `full.md` 限制为 16 MiB。MinerU 在线服务另有按方案而异的页数限制。
 
@@ -163,18 +165,20 @@ API 服务读取已导出的环境变量，不会自动加载 `.env`。默认在
 - `MINERU_POLL_INTERVAL_SECONDS`：轮询间隔，默认 2 秒
 - `OCR_BACKEND`：默认 `mineru`；设为 `local` 使用现有本地 `/file_parse` 服务
 - `OCR_BASE_URL`：`OCR_BACKEND=local` 时的本地 OCR 服务地址，默认 `http://127.0.0.1:8000`
-- `LLM_MODEL`：默认 `qwen3:4b-instruct-2507-fp16`
-- `LLM_BASE_URL`：默认 `http://127.0.0.1:11434/v1`
-- `LLM_API_KEY`：可选；留空时使用启发式抽取
+- `DEEPSEEK_API_KEY`：可选的 DeepSeek Key，优先于旧变量
+- `LLM_MODEL`：默认 `deepseek-flash`，可改成你的 DeepSeek 账号支持的模型
+- `LLM_BASE_URL`：默认 `https://api.deepseek.com`
+- `LLM_MAX_TOKENS`：正整数输出 Token 上限，默认 `8192`；遇到截断时可在模型限制内调大
+- `LLM_API_KEY`：兼容的旧 Key 变量；仅两个 Key 变量都为空时使用启发式抽取
 - `LOG_LEVEL`：默认 `INFO`
 
 Shell 配置示例：
 
 ```bash
 export MINERU_API_TOKEN="在此填入 Token"
-# 可选的 OpenAI 兼容 LLM 配置：
-export LLM_BASE_URL="http://127.0.0.1:11434/v1"
-export LLM_API_KEY="你的 LLM Key"
+# 可选的 DeepSeek 配置：
+export DEEPSEEK_API_KEY="你的 DeepSeek Key"
+export LLM_MODEL="deepseek-flash"
 ```
 
 如需本地 OCR，请导出 `OCR_BACKEND=local` 和 `OCR_BASE_URL=http://127.0.0.1:8000`。本地服务必须支持 `POST /file_parse` 和 multipart 字段 `files`。
@@ -280,7 +284,7 @@ registry.register_extractor(MenuExtractor())
 
 - **在线 OCR 配置**：检查 `MINERU_API_TOKEN`、模型版本、额度以及 [MinerU API 文档](https://mineru.net/apiManage/docs)中的当前文件和页数限制。
 - **本地 OCR 连接**：设置 `OCR_BACKEND=local`，并确认 `OCR_BASE_URL` 提供 `POST /file_parse` 和 `files` 表单字段。
-- **LLM 未启用**：需在 API 服务端设置 `LLM_*` 环境变量。未设置时将自动回退到启发式解析。
+- **LLM 未启用**：在 API 服务端导出 `DEEPSEEK_API_KEY`；仅两个 Key 变量都未设置时使用规则模式。迁移到 DeepSeek 时，清除遗留的本地模型 `LLM_MODEL` / `LLM_BASE_URL` 配置。校验失败时检查安全错误原因和 Token 上限；JSON 模式不保证 Schema 合规，更不保证事实准确。
 - **API 文档不可访问**：确认服务已运行并访问 `http://127.0.0.1:8001/docs`。
 - **自定义抽取器未生效**：检查模型和抽取器是否正确注册，参考 [开发者指南](DEVELOPER_GUIDE.md)。
 

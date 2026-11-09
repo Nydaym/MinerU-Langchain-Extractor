@@ -8,9 +8,9 @@ from .base import BaseExtractionModel
 class Person(BaseExtractionModel):
     """人员信息模型"""
     
-    full_name: Optional[str] = Field(default=None, description="姓名")
-    job_title: Optional[str] = Field(default=None, description="职位")
-    company_name: Optional[str] = Field(default=None, description="公司名称")
+    full_name: Optional[str] = Field(default=None, description="Full name")
+    job_title: Optional[str] = Field(default=None, description="Job title")
+    company_name: Optional[str] = Field(default=None, description="Company name")
     
     @classmethod
     def get_extraction_type(cls) -> str:

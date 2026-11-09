@@ -8,11 +8,11 @@ from .base import BaseExtractionModel
 class CompanyInfo(BaseExtractionModel):
     """公司信息模型"""
     
-    company_name: Optional[str] = Field(default=None, description="公司名称")
-    industry: Optional[str] = Field(default=None, description="行业")
-    address: Optional[str] = Field(default=None, description="地址")
-    phone: Optional[str] = Field(default=None, description="电话")
-    email: Optional[str] = Field(default=None, description="邮箱")
+    company_name: Optional[str] = Field(default=None, description="Company name")
+    industry: Optional[str] = Field(default=None, description="Industry")
+    address: Optional[str] = Field(default=None, description="Postal address")
+    phone: Optional[str] = Field(default=None, description="Phone number in its original format")
+    email: Optional[str] = Field(default=None, description="Email address")
     
     @classmethod
     def get_extraction_type(cls) -> str:

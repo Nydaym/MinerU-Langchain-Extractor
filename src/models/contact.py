@@ -8,11 +8,11 @@ from .base import BaseExtractionModel
 class ContactInfo(BaseExtractionModel):
     """联系信息模型"""
     
-    name: Optional[str] = Field(default=None, description="姓名")
-    phone: Optional[str] = Field(default=None, description="电话")
-    email: Optional[str] = Field(default=None, description="邮箱")
-    address: Optional[str] = Field(default=None, description="地址")
-    wechat: Optional[str] = Field(default=None, description="微信")
+    name: Optional[str] = Field(default=None, description="Contact name")
+    phone: Optional[str] = Field(default=None, description="Phone number in its original format")
+    email: Optional[str] = Field(default=None, description="Email address")
+    address: Optional[str] = Field(default=None, description="Postal address")
+    wechat: Optional[str] = Field(default=None, description="WeChat ID")
     
     @classmethod
     def get_extraction_type(cls) -> str:

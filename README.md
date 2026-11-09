@@ -31,7 +31,7 @@ A universal information extraction system that uses OCR and LangChain to extract
 
 - Python 3.10+
 - A MinerU API token for hosted OCR (get one at [MinerU API tokens](https://mineru.net/apiManage/token))
-- Optional: an OpenAI-compatible LLM endpoint for enhanced parsing
+- Optional: a DeepSeek API key for model-based extraction
 
 The hosted model is maintained by MinerU; no local `mineru` Python package or OCR server is required. The service applies its own plan-dependent page limits; check the [official API documentation](https://mineru.net/apiManage/docs).
 
@@ -39,7 +39,7 @@ The hosted model is maintained by MinerU; no local `mineru` Python package or OC
 
 ## Quickstart (uv)
 
-Run directly with uv; dependencies are pinned in `pyproject.toml` and `uv.lock`. The current LangChain pins are `langchain==1.4.9`, `langchain-core==1.7.6`, and `langchain-openai==1.7.4`.
+Run directly with uv; dependencies are pinned in `pyproject.toml` and `uv.lock`. The current LangChain pins are `langchain==1.4.9`, `langchain-core==1.7.6`, `langchain-openai==1.7.4`, and `langchain-deepseek==1.1.1`.
 
 Set `MINERU_API_TOKEN` in the process environment before starting the server. `.env.example` is a reference only; the application does not load `.env` files automatically. Do not commit real tokens or API keys.
 
@@ -62,7 +62,9 @@ uv run uvicorn src.server:app --host 0.0.0.0 --port 8001
 
 If no LLM is configured, the parser falls back to heuristics.
 
-By default, uploaded documents are sent to MinerU for OCR. When `LLM_API_KEY` is configured, OCR text is also sent to the configured LLM endpoint. Requests are synchronous and wait for OCR and extraction to finish, so configure reverse proxies or gateways with suitable request timeouts.
+By default, uploaded documents are sent to MinerU for OCR. When `DEEPSEEK_API_KEY` (or legacy `LLM_API_KEY`) is configured, OCR text is also sent to the configured DeepSeek endpoint. Requests are synchronous and wait for OCR and extraction to finish, so configure reverse proxies or gateways with suitable request timeouts.
+
+Extraction uses `ChatDeepSeek.with_structured_output(method="json_mode", include_raw=True)`, which sends `response_format={"type":"json_object"}`. English instructions include a JSON schema and example; extracted values retain their source language. This is **not provider-enforced JSON Schema**: the application validates the complete raw JSON with Pydantic, rejects extra fields and invalid types, requires every record field (use `null` for unknown nullable fields), and computes `confidence` locally. Empty, truncated, or invalid output is retried once, then returned as `success=false`; configured-provider failures do not silently fall back to heuristics. A valid `{"items":[]}` is an empty successful extraction. No-key mode still uses heuristics. See [DeepSeek JSON Output](https://api-docs.deepseek.com/guides/json_mode).
 
 The server accepts PDF, PNG, JPG/JPEG, JP2, WebP, GIF, and BMP uploads up to 200 MiB. The client limits a downloaded MinerU result ZIP to 64 MiB and `full.md` to 16 MiB. MinerU's hosted page limits are separate and vary by service plan.
 
@@ -163,18 +165,20 @@ The API server reads exported environment variables; it does not automatically l
 - `MINERU_POLL_INTERVAL_SECONDS`: polling interval, default `2` seconds
 - `OCR_BACKEND`: `mineru` by default; set to `local` to use the existing local `/file_parse` service
 - `OCR_BASE_URL`: local OCR service URL when `OCR_BACKEND=local` (default `http://127.0.0.1:8000`)
-- `LLM_MODEL`: default `qwen3:4b-instruct-2507-fp16`
-- `LLM_BASE_URL`: default `http://127.0.0.1:11434/v1`
-- `LLM_API_KEY`: optional; when empty, heuristic extraction is used
+- `DEEPSEEK_API_KEY`: optional DeepSeek key; takes precedence over the legacy alias
+- `LLM_MODEL`: default `deepseek-flash`; choose a model supported by your DeepSeek account
+- `LLM_BASE_URL`: default `https://api.deepseek.com`
+- `LLM_MAX_TOKENS`: positive output-token limit, default `8192`; increase within the model's limits if responses are truncated
+- `LLM_API_KEY`: legacy key alias; heuristics are used only when both key variables are empty
 - `LOG_LEVEL`: default `INFO`
 
 Example shell configuration:
 
 ```bash
 export MINERU_API_TOKEN="paste-your-token-here"
-# Optional OpenAI-compatible LLM configuration:
-export LLM_BASE_URL="http://127.0.0.1:11434/v1"
-export LLM_API_KEY="your-llm-key"
+# Optional DeepSeek configuration:
+export DEEPSEEK_API_KEY="your-deepseek-key"
+export LLM_MODEL="deepseek-flash"
 ```
 
 To use a local OCR service instead, export `OCR_BACKEND=local` and `OCR_BASE_URL=http://127.0.0.1:8000`. The local endpoint must accept `POST /file_parse` with a multipart `files` field.
@@ -280,7 +284,7 @@ registry.register_extractor(MenuExtractor())
 
 - **Hosted OCR setup**: verify `MINERU_API_TOKEN`, model version, quota, and current file/page limits in the [MinerU API documentation](https://mineru.net/apiManage/docs).
 - **Local OCR connectivity**: set `OCR_BACKEND=local`; ensure `OCR_BASE_URL` serves `POST /file_parse` with form field `files`.
-- **LLM disabled**: set `LLM_*` environment variables in the API server. Heuristic fallback is automatic.
+- **LLM disabled**: export `DEEPSEEK_API_KEY` in the API server environment. Heuristics apply only when neither key variable is set. Remove stale local-model `LLM_MODEL` / `LLM_BASE_URL` overrides when migrating to DeepSeek. On validation errors, inspect the safe error reason and token limit; JSON mode does not guarantee schema compliance or factual accuracy.
 - **API docs**: ensure the server is running and visit `http://127.0.0.1:8001/docs`.
 - **Custom extractors not working**: check if models and extractors are properly registered, refer to [Developer Guide](DEVELOPER_GUIDE_EN.md).
 
